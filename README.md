@@ -19,4 +19,6 @@ GOWORK=off go test -race ./...
 GOWORK=off go vet ./...
 ```
 
-SDK 版本与进程协议、能力版本、插件版本分别管理。v0.1.0 抽取已有协议实现，保持线上字节和语义；正式消费者固定版本，联调才显式添加 SDK replace。Private 仓库首次获取需配置 Git 读取权限与 GOPRIVATE。
+SDK 版本与进程协议、能力版本、插件版本分别管理。v0.1.0 抽取已有协议实现，保持线上字节和语义；正式消费者固定版本，联调才显式添加 SDK replace。SDK 为 Public，获取依赖无需 GitHub 登录或 GOPRIVATE。
+
+当前推荐版本为 **v0.1.1**：仓库公开后的补丁发布，协议和执行行为与 v0.1.0 一致。可直接运行 `go mod download github.com/xieliangji/soluna-plugin-sdk@v0.1.1`，不需要主仓库或私有模块配置。
