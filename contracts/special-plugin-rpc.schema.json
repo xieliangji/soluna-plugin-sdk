@@ -1,0 +1,164 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": "special/1.0"
+    },
+    "instance": {
+      "type": "string",
+      "minLength": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reply": {
+      "type": "boolean"
+    },
+    "method": {
+      "enum": [
+        "describe",
+        "template",
+        "compile",
+        "prepare",
+        "run",
+        "cleanup",
+        "report.prepare",
+        "report.render",
+        "host.call",
+        "host.event",
+        "host.variable",
+        "host.resource",
+        "cancel"
+      ]
+    },
+    "deadline": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload": {},
+    "error": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "version",
+    "instance",
+    "id"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.io.soluna.local/v1/special-plugin-rpc.schema.json",
+  "title": "专项双向消息 1.0",
+  "oneOf": [
+    {
+      "properties": {
+        "reply": {
+          "const": true
+        }
+      },
+      "required": [
+        "reply"
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "method"
+            ]
+          },
+          {
+            "required": [
+              "deadline"
+            ]
+          }
+        ]
+      },
+      "oneOf": [
+        {
+          "required": [
+            "payload"
+          ],
+          "not": {
+            "required": [
+              "error"
+            ]
+          }
+        },
+        {
+          "required": [
+            "error"
+          ],
+          "not": {
+            "required": [
+              "payload"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "properties": {
+        "method": {
+          "const": "cancel"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "reply"
+            ]
+          },
+          {
+            "required": [
+              "deadline"
+            ]
+          },
+          {
+            "required": [
+              "payload"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "properties": {
+        "method": {
+          "not": {
+            "const": "cancel"
+          }
+        }
+      },
+      "required": [
+        "method",
+        "deadline",
+        "payload"
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "reply"
+            ]
+          },
+          {
+            "required": [
+              "error"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

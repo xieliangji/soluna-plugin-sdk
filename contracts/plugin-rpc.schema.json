@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.io.soluna.local/v1/plugin-rpc.schema.json",
+  "title": "Soluna process plugin RPC envelope v1",
+  "oneOf": [{"$ref": "#/$defs/request"}, {"$ref": "#/$defs/successResponse"}, {"$ref": "#/$defs/errorResponse"}],
+  "$defs": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "request": {
+      "type": "object", "additionalProperties": false, "required": ["protocolVersion", "id", "method", "deadline", "params"],
+      "properties": {
+        "protocolVersion": {"const": "1.0"}, "id": {"$ref": "#/$defs/id"},
+        "method": {"enum": ["handshake", "health", "execute", "cancel", "shutdown"]},
+        "deadline": {"type": "string", "format": "date-time"}, "params": {"type": "object"}
+      }
+    },
+    "successResponse": {
+      "type": "object", "additionalProperties": false, "required": ["protocolVersion", "id", "result"],
+      "properties": {"protocolVersion": {"const": "1.0"}, "id": {"$ref": "#/$defs/id"}, "result": {}}
+    },
+    "errorResponse": {
+      "type": "object", "additionalProperties": false, "required": ["protocolVersion", "id", "error"],
+      "properties": {"protocolVersion": {"const": "1.0"}, "id": {"$ref": "#/$defs/id"}, "error": {"$ref": "#/$defs/error"}}
+    },
+    "error": {
+      "type": "object", "additionalProperties": false, "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$"},
+        "message": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "retryable": {"type": "boolean"},
+        "details": {"type": "object", "maxProperties": 32, "additionalProperties": {"type": "string", "maxLength": 1024}}
+      }
+    }
+  }
+}
