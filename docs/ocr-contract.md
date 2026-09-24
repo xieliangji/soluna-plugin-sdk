@@ -4,17 +4,9 @@
 
 ## 独立开发的实现契约
 
-实现入口为本项目的 [`adapter.Backend`](README.md)。它由适配层消费，业务实现必须提供全部三个方法：
+公共接口为 [pluginapi.Handler](../pluginapi/server.go)，消息类型见 [protocol.go](../pluginapi/protocol.go)。Handler 包括 Handshake、Health、Execute、Shutdown。生成项目的内部适配器只负责连接业务后端；它不是另一套公共协议。默认骨架的实现位置和开发步骤见 [SDK 开发指引](development.md)。
 
-```go
-type Backend interface {
-    Health(context.Context) (pluginapi.HealthResult, error)
-    Execute(context.Context, pluginapi.ExecuteParams) (pluginapi.ExecuteResult, error)
-    Shutdown(context.Context) error
-}
-```
-
-在本项目 `internal/` 下实现后端，在程序入口调用 `adapter.New(version, backend)`，并增加 `var _ adapter.Backend = (*Backend)(nil)` 编译检查。当前入口注入 backend.Implementation，业务尚未实现，明确返回未就绪和失败。帧、Server 和通用值类型仍使用固定版本的公开 SDK，不复制一份通信结构；业务实现不需要导入宿主 internal 或修改宿主源码。
+SDK 负责帧、调度和消息契约，业务后端负责真实能力、资源和结果；插件无需克隆或导入主仓库。
 
 ### Health：是否能接收请求
 
@@ -43,7 +35,7 @@ type Backend interface {
 
 适配层负责握手身份；通用 Server 负责帧、请求取消与单并发调度，业务后端负责自己的资源。Shutdown 在同一适配器内只调用后端一次，保留首次关闭错误；即使入口 defer 与协议关闭都触发，也不会重复释放。关闭失败不能声称回收成功。
 
-本项目 [`handler_test.go`](README.md) 提供最小假后端和执行证据透传样例，[`health_test.go`](README.md) 覆盖健康、降级、探测错误、原上下文及取消。它们用于验证接线，不是生产业务实现。单独在本项目运行开发指南中的测试即可；后续业务必须补真实输入的成功、失败、资源错误及运行中取消用例。
+生成项目的适配器测试只验证接线。业务开发按 [SDK 开发指引](development.md) 补齐真实输入、成功／失败、资源错误和运行中取消测试；这些测试不代表真机或原生平台验收。
 
 ### OCR 能力的输入与输出
 

@@ -135,6 +135,8 @@ type RenderRequest struct {
 	Links  map[string]string `json:"links"`
 }
 
+// Provider is the sole special-plugin implementation contract. Projects implement
+// it directly; they must not redeclare a local copy of this interface.
 // Provider methods may return errors; execution failure is distinct from a
 // completed test whose Result.Status is failed. Report methods must be stateless.
 type Provider interface {

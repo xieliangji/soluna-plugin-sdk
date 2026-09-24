@@ -14,7 +14,9 @@ soluna scaffold special-plugin --output /path/to/my-special --module example.com
 
 之后使用现有 `special list/init/validate/run`。Profile 继续位于 `specials/<app-id>/<special-id>/<profile-id>.yaml`。`init` 输出的 JSON 也是合法的单文档 YAML；示例中的元素、设备和存储路径必须替换。`validate` 启动短生命周期插件完成私有配置编译，再由宿主解析并校验资产；不会启动设备。`run` 才占用手机并执行业务。
 
-外部骨架演示应用启动检查，不代表蓝牙专项实现。配置、业务、结果、报告、测试分别在 `provider/`，入口在 `cmd/special-plugin/`。业务测试用 fake Host，不连接手机。独立结果和字段说明供后续分析使用，本轮不调用模型。
+专项唯一公共接口为 `special.Provider` 与 `special.Host`，请求／响应类型统一位于 `pluginapi/special/types.go`。插件直接实现 Provider，不复制或重定义接口。SDK 的 `Main` 管理参数、清单生成、实例绑定及 stdio；`Serve` 管理帧、派发、运行身份与生命周期边界。协议变化由 SDK 版本化处理。
+
+生成项目只保留 Provider 待实现方法、插件元数据、私有配置／结果 Schema 占位和测试入口，不附带应用重启、控件检查或报告业务样例。未实现方法返回 `ErrNotImplemented`，不能当作执行或清理成功。构建可生成清单，但 init、validate、run 和报告必须等开发者实现对应业务后才能使用。私有业务 Schema 归插件，公共 RPC／清单 Schema 归 SDK。
 
 ## 消息与预算
 

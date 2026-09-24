@@ -1,5 +1,7 @@
 # 协议导航
 
+开发者和 Agent 共用[插件开发指引](development.md)。
+
 | 类别 | 通信与生命周期 | 业务边界 |
 | --- | --- | --- |
 | UI 自动化能力 | [能力协议 1.0](ui-protocol.md) | Health、Execute、Shutdown；通过资源描述符读写事实 |
@@ -7,7 +9,7 @@
 | 日志断言 | 上述能力协议 | [日志契约](log-contract.md)：授权日志、私有规则、真假与执行失败 |
 | 专项测试 | [special/1.0](special-protocol.md) | 配置编译、准备／执行／清理、Host 回调、独立结果及私有报告 |
 
-Schema 位于 contracts，精确 Go 类型位于 pluginapi。SDK 维护通信与能力协议，生成项目维护自己的实现接口、参数、业务夹具与说明。文中宿主操作链接仅供 Soluna 使用方式参考，插件编译不依赖宿主源码。
+Schema 位于 contracts，精确 Go 类型位于 pluginapi。SDK 维护通信与能力协议，生成项目直接实现 SDK 接口，只维护私有参数、业务、报告及测试。文中宿主操作链接仅供 Soluna 使用方式参考，插件编译不依赖宿主源码。
 
 ## 扩展与版本
 

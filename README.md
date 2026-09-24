@@ -10,7 +10,7 @@
 
 UI 能力和专项协议分别版本化，不能以统一 Execute 替代专项生命周期。新增类别扩展自己的协议与能力契约，不修改现有类别的含义。
 
-[维护规则](AGENTS.md) → [协议入口](docs/README.md)。生成项目自带业务接口、契约和测试；业务实现不需要克隆 Soluna 主仓库。
+[维护规则](AGENTS.md) → [协议入口](docs/README.md)。公共接口、契约与[开发指引](docs/development.md)统一在 SDK；生成项目只提供最小业务骨架与 README，不生成 AGENTS.md 或开发文档副本；业务实现不需要克隆 Soluna 主仓库。
 
 ## 验证
 
@@ -21,4 +21,4 @@ GOWORK=off go vet ./...
 
 SDK 版本与进程协议、能力版本、插件版本分别管理。v0.1.0 抽取已有协议实现，保持线上字节和语义；正式消费者固定版本，联调才显式添加 SDK replace。SDK 为 Public，获取依赖无需 GitHub 登录或 GOPRIVATE。
 
-当前推荐版本为 **v0.1.1**：仓库公开后的补丁发布，协议和执行行为与 v0.1.0 一致。可直接运行 `go mod download github.com/xieliangji/soluna-plugin-sdk@v0.1.1`，不需要主仓库或私有模块配置。
+当前推荐版本为 **v0.1.2**：提供专项统一进程入口 `special.Main` 和明确的未实现错误，公共接口仍为 `special.Provider`。协议保持 special/1.0。
