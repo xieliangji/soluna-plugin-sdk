@@ -46,3 +46,5 @@ Result 与私有 Schema/ResultGuide 一起定义业务判定。大结果通过�
 离线夹具定义在 [plugintest](../pluginapi/plugintest/types.go) 和 [Schema](../contracts/plugin-test-suite.schema.json)。使用 Soluna 的 `plugin test --manifest ... --suite ... --output ...` 验证真实插件进程，关键字与业务事件按期望顺序核对。资源分块传输由 stub 提供，报告只能用资源；stub 不连接手机。夹具允许 run 多单元、cleanup 及 report 阶段，业务返回状态必须显式断言。
 
 插件本身运行 `GOWORK=off go test -race ./...` 与 `go vet ./...`，再做真实设备验收。SDK 测试、stub 测试、生产引擎假设备和真机分别记录，不能互相代替。
+
+Descriptor.Templates 声明可选模板 ID 列表；未声明时只有 default。TemplateRequest.TemplateID 选择其中一项，宿主拒绝未声明项。这样迁移保留既有配置版本模板，不把所有调用静默改成最新模板。

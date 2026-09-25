@@ -18,6 +18,13 @@ func (d Descriptor) Validate() error {
 	if !ValidID(d.ID) || d.Version == "" || len(d.Platforms) == 0 || len(d.ProfileVersions) == 0 || d.ResultGuide == "" {
 		return fmt.Errorf("special: incomplete descriptor")
 	}
+	seenTemplates := map[string]bool{}
+	for _, name := range d.Templates {
+		if !ValidID(name) || seenTemplates[name] {
+			return fmt.Errorf("special: invalid or duplicate template")
+		}
+		seenTemplates[name] = true
+	}
 	for _, p := range d.Platforms {
 		if p != "android" && p != "ios" {
 			return fmt.Errorf("special: invalid platform")

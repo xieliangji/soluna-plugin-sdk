@@ -13,6 +13,7 @@ const MaxFrame = 8 << 20
 const MaxCalls = 10000
 
 type Descriptor struct {
+	Templates       []string        `json:"templates,omitempty"`
 	ID              string          `json:"id"`
 	Version         string          `json:"version"`
 	Platforms       []string        `json:"platforms"`
@@ -29,8 +30,9 @@ type Manifest struct {
 	Descriptor      Descriptor `json:"descriptor"`
 }
 type TemplateRequest struct {
-	AppID     string `json:"appId"`
-	ProfileID string `json:"profileId"`
+	TemplateID string `json:"templateId,omitempty"`
+	AppID      string `json:"appId"`
+	ProfileID  string `json:"profileId"`
 }
 type CompileRequest struct {
 	Profile json.RawMessage `json:"profile"`
