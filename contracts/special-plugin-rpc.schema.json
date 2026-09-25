@@ -30,7 +30,11 @@
         "host.event",
         "host.variable",
         "host.resource",
-        "cancel"
+        "cancel",
+        "health",
+        "snapshot",
+        "host.observe",
+        "host.resource.read"
       ]
     },
     "deadline": {
