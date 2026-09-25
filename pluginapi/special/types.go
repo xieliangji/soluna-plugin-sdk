@@ -44,28 +44,43 @@ type Role struct {
 	Bindings map[string]any `json:"bindings,omitempty"`
 }
 type Compiled struct {
-	ProfileID      string          `json:"profileId"`
-	ProfileVersion int             `json:"profileVersion"`
-	Name           string          `json:"name"`
-	AppID          string          `json:"appId"`
-	Platform       string          `json:"platform"`
-	DeviceConfig   string          `json:"deviceConfig"`
-	ArtifactStore  string          `json:"artifactStore"`
-	Catalogs       []Catalog       `json:"catalogs,omitempty"`
-	Roles          map[string]Role `json:"roles,omitempty"`
-	Keywords       []string        `json:"keywords"`
-	TimeoutMs      int64           `json:"timeoutMs"`
-	CleanupMs      int64           `json:"cleanupMs"`
-	Data           json.RawMessage `json:"data"`
+	ProductModel    string          `json:"productModel,omitempty"`
+	ApplicationName string          `json:"applicationName,omitempty"`
+	SubjectName     string          `json:"subjectName,omitempty"`
+	SubjectID       string          `json:"subjectId,omitempty"`
+	Units           int             `json:"units,omitempty"`
+	UnitTimeoutMs   int64           `json:"unitTimeoutMs,omitempty"`
+	PrepareMs       int64           `json:"prepareMs,omitempty"`
+	MaxUnitCalls    int             `json:"maxUnitCalls,omitempty"`
+	ImplicitWaitMs  *int64          `json:"implicitWaitMs,omitempty"`
+	Capabilities    map[string]any  `json:"capabilities,omitempty"`
+	ExternalReport  string          `json:"externalReport,omitempty"`
+	ProfileID       string          `json:"profileId"`
+	ProfileVersion  int             `json:"profileVersion"`
+	Name            string          `json:"name"`
+	AppID           string          `json:"appId"`
+	Platform        string          `json:"platform"`
+	DeviceConfig    string          `json:"deviceConfig"`
+	ArtifactStore   string          `json:"artifactStore"`
+	Catalogs        []Catalog       `json:"catalogs,omitempty"`
+	Roles           map[string]Role `json:"roles,omitempty"`
+	Keywords        []string        `json:"keywords"`
+	TimeoutMs       int64           `json:"timeoutMs"`
+	CleanupMs       int64           `json:"cleanupMs"`
+	Data            json.RawMessage `json:"data"`
 }
 type RunRequest struct {
+	Epoch    string   `json:"epoch,omitempty"`
+	Unit     int      `json:"unit,omitempty"`
 	RunID    string   `json:"runId"`
 	Compiled Compiled `json:"compiled"`
 }
 type Failure struct {
-	Code        string `json:"code"`
-	Message     string `json:"message"`
-	OperationID string `json:"operationId,omitempty"`
+	Retryable   bool              `json:"retryable,omitempty"`
+	Details     map[string]string `json:"details,omitempty"`
+	Code        string            `json:"code"`
+	Message     string            `json:"message"`
+	OperationID string            `json:"operationId,omitempty"`
 }
 type Result struct {
 	Status            string          `json:"status"`
@@ -74,6 +89,7 @@ type Result struct {
 	SecondaryFailures []Failure       `json:"secondaryFailures,omitempty"`
 }
 type Call struct {
+	Wait      *WaitPolicy     `json:"wait,omitempty"`
 	ID        string          `json:"id"`
 	Mode      string          `json:"mode"` // do, probe, observe
 	Keyword   string          `json:"keyword"`
@@ -82,6 +98,10 @@ type Call struct {
 	TimeoutMs int64           `json:"timeoutMs"`
 }
 type Feedback struct {
+	Message           string          `json:"message,omitempty"`
+	Attempts          int             `json:"attempts,omitempty"`
+	StartedAt         *time.Time      `json:"startedAt,omitempty"`
+	FinishedAt        *time.Time      `json:"finishedAt,omitempty"`
 	Status            string          `json:"status"`
 	ProbeState        string          `json:"probeState,omitempty"`
 	Failure           *Failure        `json:"failure,omitempty"`
@@ -105,6 +125,9 @@ type Variable struct {
 	Value json.RawMessage `json:"value,omitempty"`
 }
 type Resource struct {
+	Offset      int64  `json:"offset,omitempty"`
+	Total       int64  `json:"total,omitempty"`
+	Commit      bool   `json:"commit,omitempty"`
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	ContentType string `json:"contentType"`
@@ -116,10 +139,11 @@ type ResourceReceipt struct {
 	Size   int    `json:"size"`
 }
 type File struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	ContentType string `json:"contentType"`
-	Data        []byte `json:"data"`
+	Resource    *ResourceReceipt `json:"resource,omitempty"`
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	ContentType string           `json:"contentType"`
+	Data        []byte           `json:"data"`
 }
 type ReportRequest struct {
 	Result  Result          `json:"result"`
@@ -150,6 +174,8 @@ type Provider interface {
 	RenderReport(context.Context, RenderRequest) ([]byte, error)
 }
 type Host interface {
+	ReadResource(context.Context, ResourceRead) (ResourceChunk, error)
+	Observe(context.Context, ObservationRequest) (Observation, error)
 	Call(context.Context, Call) (Feedback, error)
 	Event(context.Context, Event) error
 	Variable(context.Context, VariableRequest) (Variable, error)

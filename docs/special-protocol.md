@@ -1,66 +1,48 @@
-# 专项进程插件协议 special/1.0
+# 专项协议 V1：当前迁移草案
 
-本协议用于外部专项项目，独立于动作插件 `1.0`。公开 Go SDK 为 `pluginapi/special`（本 SDK），进程树管理复用宿主 `internal/plugin`；执行适配复用现有专项 Runner、Engine 和 Delivery。现有 Audio / Connect 蓝牙仍为内置 Provider，未在本次骨架交付中迁出。
+进程版本仍为 `special/1.0`，兼容标识为 `v1-draft-20260925`。首个稳定版本前统一保持 V1；SDK Go module 版本单独递增。宿主启动时检查 Describe、Health.ready 和 Health.revision；草案不一致必须在占用设备之前拒绝。
 
-## 创建、发现和执行
+## SDK 接口与项目边界
 
-```sh
-soluna scaffold special-plugin --output /path/to/my-special --module example.com/my-special --plugin-id startup-check --sdk-path /path/to/soluna-plugin-sdk
-```
+公共接口、类型和传输只有 SDK 一份定义：[types.go](../pluginapi/special/types.go)、[runtime.go](../pluginapi/special/runtime.go)、[server.go](../pluginapi/special/server.go)。插件实现 Provider，可额外实现 HealthProvider、SnapshotProvider、ResourceReporter。项目不得导入 soluna-dsl 或复制协议实现。
 
-也可用 `--sdk-version` 绑定包含本 SDK 的固定发布版本；未发布时使用显式本地 SDK。工程有自己的 go.mod，首次执行 `go mod tidy` 后使用 `sh build.sh` 或 Windows `./build.ps1`，产出独立程序和 `dist/special-plugin.json`。当前脚本生成可运行目录，不负责正式发行安装、归档或许可证全集装配；发布前仍需按依赖补齐许可。
+Provider 负责 Describe、Template、Compile、Prepare、Run、Cleanup、PrepareReport、RenderReport。SDK 服务端负责状态转换、取消、进程消息和回调 epoch；业务模块负责完整配置校验、流程、结果及报告。准备失败后禁止 Run；Cleanup 即使准备失败仍允许调用。业务失败通过 Result.Status / Failure 表示，不用 RPC 成功代表业务通过。
 
-`SOLUNA_SPECIAL_PLUGIN_PATHS` 指向一个或多个清单文件/成品目录；目录内读取 `special-plugin.json`。分隔符采用系统路径列表规则（macOS/Linux 为 `:`，Windows 为 `;`）。宿主不扫描源码，重复专项 ID（包括与内置冲突）明确拒绝。清单绑定协议、插件身份、领域描述与二进制 SHA256；启动前再次核对摘要，握手描述必须与清单一致。
+Compiled 冻结业务配置、角色/目录、设备与存储引用、平台、关键字、单元数量与预算。Runtime 只经 Host 注入，不暴露宿主设备对象或本地文件系统。SubjectName/SubjectID、ProductModel、ApplicationName 为业务显示元数据，不授权设备操作。
 
-之后使用现有 `special list/init/validate/run`。Profile 继续位于 `specials/<app-id>/<special-id>/<profile-id>.yaml`。`init` 输出的 JSON 也是合法的单文档 YAML；示例中的元素、设备和存储路径必须替换。`validate` 启动短生命周期插件完成私有配置编译，再由宿主解析并校验资产；不会启动设备。`run` 才占用手机并执行业务。
+## 生命周期
 
-专项唯一公共接口为 `special.Provider` 与 `special.Host`，请求／响应类型统一位于 `pluginapi/special/types.go`。插件直接实现 Provider，不复制或重定义接口。SDK 的 `Main` 管理参数、清单生成、实例绑定及 stdio；`Serve` 管理帧、派发、运行身份与生命周期边界。协议变化由 SDK 版本化处理。
+每次运行：Describe → Health → Compile → Prepare → Run(unit 1..N) → Cleanup → Snapshot（可选）。RunID 与 Compiled 在 Prepare 后不可更改。单元顺序严格递增；每个阶段使用新 epoch。旧阶段 Host 在结束后失效，不能把旧执行回调送进清理阶段。清理使用独立有界上下文，插件仍必须主动响应取消。
 
-生成项目只保留 Provider 待实现方法、插件元数据、私有配置／结果 Schema 占位和测试入口，不附带应用重启、控件检查或报告业务样例。未实现方法返回 `ErrNotImplemented`，不能当作执行或清理成功。构建可生成清单，但 init、validate、run 和报告必须等开发者实现对应业务后才能使用。私有业务 Schema 归插件，公共 RPC／清单 Schema 归 SDK。
+报告运行在新的进程：report.prepare → report.render，只消费冻结结果与资源。ResourceReporter 可以读取宿主登记资源，提交 report- 前缀的报告输出；宿主不得提供设备调用。报告失败保留执行结果，执行结果不能依赖 HTML。
 
-## 消息与预算
+## Host 契约
 
-清单和帧的规范分别见 [Manifest Schema](../contracts/special-plugin-manifest.schema.json)、[RPC Schema](../contracts/special-plugin-rpc.schema.json)。方法载荷与字段名以[SDK 类型](../pluginapi/special/types.go)为准；未知字段、多 JSON 值均拒绝。
+| 方法 | 含义 |
+| --- | --- |
+| Call | 声明过的关键字、模式、角色、JSON 参数、Wait 和预算；返回动作状态、主次失败、探测状态及时间 |
+| Observe | 原始页面源、元素矩形或页面源加矩形；解析业务含义仍由插件完成 |
+| Variable | 读取宿主作用域变量，插件不得直接写宿主变量 |
+| Event | 连续序号、业务单元、阶段、事件类别及结构化私有数据 |
+| Resource | 分块提交字节，返回资源 ID、SHA256 和大小；完成前不可供报告读取 |
+| ReadResource | 按登记资源 ID、偏移与限额读取，不接受宿主路径 |
 
-传输复用四字节大端长度加 UTF-8 JSON 帧；最大帧 8 MiB，SDK单次请求 JSON 不超过4 MiB。消息携带 `version=special/1.0`、随机进程 `instance`、方向前缀请求 ID。生命周期载荷携带 runId 和冻结 Compiled；后续 run/cleanup 不得改动准备时的运行身份或输入。反向请求通过当前进程和活动阶段关联 run，不接受执行阶段以外的设备调用。
+Call 的 ID 属于当前阶段。同身份同内容只返回已知结果，改变内容必须冲突；unknown 不自动重放。probe 的未匹配不是驱动失败；取消、连接丢失和隐式等待恢复失败不得降级为不存在。关键字的 Wait 与 Timeout 语义由实际宿主声明及执行器决定，不在插件中重新实现关键字。
 
-每端最多32个待响应请求、32个待写消息、8个入向处理槽。收发循环不被业务运行占用；取消消息直接取消目标上下文。取消后等候至多1秒的处理结束反馈，未收到则关闭连接并终止宿主拥有的插件进程树。未知动作结果不自动重放。启动握手10秒；配置/报告查询30秒；准备30秒；执行由配置声明，最高24小时；清理最长60秒。无调用方 deadline 的 SDK 请求默认15分钟。进程关闭等待至多5秒，未回收则交给宿主现有清理跟踪，阻止下一次运行绕过未完成清理。
+资源推荐使用 PutResource / ReadResourceTo：每块 256 KiB，单资源最多 256 MiB；读取核对偏移、稳定回执、大小与摘要，写入核对最终回执。业务不得依赖宿主 Path；例如日志描述符中的资源先读入插件自身临时文件，再交给私有分析器。
 
-## 生命周期与方法
+帧为 4 字节大端长度加 JSON，最大帧 8 MiB，方法载荷最多 4 MiB。32 个待响应请求、32 个待写消息、8 个入向处理槽。取消直接投递目标上下文；无调用方期限的 SDK 请求默认 15 分钟。未知结果应保留证据缺口并终止自动重放。
 
-| 方向/方法 | 载荷 | 结果与限制 |
-| --- | --- | --- |
-| 宿主 `describe` | 空对象 | Descriptor；平台、配置版本、Profile/结果 Schema、结果解释 |
-| 宿主 `template` | TemplateRequest | 单个 JSON 配置；当前支持 default 模板 |
-| 宿主 `compile` | CompileRequest | Compiled；私有数据、角色/目录引用、设备/存储引用、能力和预算；不操作设备 |
-| 宿主 `prepare` | RunRequest | 准备一次，允许宿主能力回调 |
-| 宿主 `run` | 相同 RunRequest | Result；领域判定 passed/failed，失败必须说明原因；宿主验证私有结果 Schema |
-| 宿主 `cleanup` | 相同 RunRequest | 清理业务；成功后重复调用无副作用；不能和在途方法并行 |
-| 宿主 `report.prepare` | ReportRequest | Report 数据文件、必需资源 ID、私有渲染状态；无设备回调 |
-| 宿主 `report.render` | RenderRequest | HTML 字节（JSON 中编码为 base64）；消费冻结输入和最终链接 |
-| 插件 `host.call` | Call | Feedback；do/probe/observe，经既有引擎执行并保存事实 |
-| 插件 `host.event` | Event | 确认接收；序号从1连续递增，最多10000条；最后一条相同内容重传可确认 |
-| 插件 `host.variable` | VariableRequest | 读取当前作用域变量；不允许插件直接篡改宿主变量 |
-| 插件 `host.resource` | Resource | 返回宿主登记后的资源ID/摘要/大小；单资源不超过2 MiB |
+## 结果与证据
 
-方法异常使调用失败，宿主用 `special.plugin_call_failed` 等阶段分类保留原因。结构化业务失败在 Result / Feedback 的 Failure 中，包含 code、message 和 operationId；不能用 RPC 返回成功替代业务通过。
+Result 与私有 Schema/ResultGuide 一起定义业务判定。大结果通过不可变资源回执引用，每轮详情独立保存；主结果不能只留下 HTML 或统计而丢失底层事实。必须能从轮次定位动作、状态转移、UI 结果、日志完整性与原始资源。Host 的执行状态、领域判定、清理和报告交付状态分别保留。
 
-一期桥接动作包括点击、长按、滑动、输入、等待、重启/清理应用、读取文字、保存矩形、元素/属性/页面断言、截图和应用日志开始/结束。插件必须在 Compiled.Keywords 声明实际需要的规范关键字。`probe` 当前只支持元素存在；`observe` 支持 getText 与 specialPageSource。页面源观察最大2 MiB，带采样时间，可在插件侧进行私有页面解析。完整矩形快照及逐批原生日志读取还未形成专项公开接口，后续蓝牙迁移前补齐。
+宿主应独立保存从启动到结束的证据包，包含动作意图/反馈、阶段身份、插件/二进制/配置摘要、领域结果和资源索引。事实来自宿主还是插件必须可区分。未来 AI 分析直接消费这些数据，报告仅引用分析结果。
 
-同一逻辑操作 ID 的相同内容返回已知反馈，不再执行；不同内容报 operation_conflict。宿主在调用设备前登记 unknown，再保存最终反馈。每次运行最多10000个操作，缓存预算64 MiB，超限失败而非删除去重记录。这里的去重不是崩溃恢复机制；进程重启不会续跑业务。探测明确区分 matched/not_matched/error，传输错误和附加失败不能降为“不存在”。
+完整目标设计见 [V1 设计](special-design-v1.md)。类型化能力目录协商、通用业务证据强校验、显式 drain/seal 和断点恢复状态查询尚未全部落地，不能把本次迁移草案标成稳定完整版。
 
-## 结果、报告、证据和分析
+## 插件集成测试
 
-每次运行一个执行进程；运行结束先停止插件/引擎活动再释放设备资源。插件进程也加入现有清理跟踪，不能只 kill 后就宣称清理完成。宿主可清理进程、会话等资源，但插件崩溃导致业务恢复未完成时保留明确失败。
+离线夹具定义在 [plugintest](../pluginapi/plugintest/types.go) 和 [Schema](../contracts/plugin-test-suite.schema.json)。使用 Soluna 的 `plugin test --manifest ... --suite ... --output ...` 验证真实插件进程，关键字与业务事件按期望顺序核对。资源分块传输由 stub 提供，报告只能用资源；stub 不连接手机。夹具允许 run 多单元、cleanup 及 report 阶段，业务返回状态必须显式断言。
 
-报告使用新的短生命周期插件进程，仅依赖冻结数据，不依赖原 Suite 实例。宿主先将 `special-result.json` 与 `special-analysis-input.json` 写入运行目录，再请求私有报告；报告失败时两份输入仍可读取。后者包含插件及二进制身份、Profile摘要、编译输入、实际引擎结果、设备、资源、私有结果 Schema/解释和可用的证据目录入口。
-
-私有文件进入现有 Delivery 限额和名称/资源校验；宿主上传后提供链接映射，插件渲染自己的 HTML。必需资源缺失报交付错误，不替换成 UI 报告。当前每次报告调用都可在新进程运行；尚无单独的 CLI“重新生成报告”命令。
-
-事实分为宿主记录的动作意图/反馈、阶段与基础设施结果，以及插件声明的业务事件/领域结果。stderr诊断最多保留64 KiB并写入证据。启动、配置、执行、清理、交付继续使用现有完整证据包；未收到结果保留 unknown，不把它转换为 passed。结果文件在报告请求前冻结，后续交付事实由外层证据包追加并封存。独立模型分析及自动报告嵌入仍未实现。
-
-## 当前范围和验证
-
-本轮完成外部专项 SDK、发现/配置/执行桥、私有报告与独立分析输入，以及可在仓库外构建的项目骨架。验证包含真实独立模块构建、双向子进程调用、取消、操作去重/冲突、实际引擎的模拟设备运行和独立报告生成。真机、Windows原生运行、现有两个蓝牙提供方迁出、通用观察能力补齐及正式发行装配不能用骨架测试代替。
-
-整体迁移设计与后续验收见[专项插件化设计](https://github.com/xieliangji/soluna-dsl/blob/soluna/workbench-rebuild/docs/specials/plugin-architecture.md)。
+插件本身运行 `GOWORK=off go test -race ./...` 与 `go vet ./...`，再做真实设备验收。SDK 测试、stub 测试、生产引擎假设备和真机分别记录，不能互相代替。

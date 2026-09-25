@@ -23,21 +23,49 @@ func Decode(raw []byte, value any) error {
 	return nil
 }
 
-type remoteHost struct{ peer *Peer }
+type remoteHost struct {
+	peer  *Peer
+	epoch string
+	ctx   context.Context
+}
+
+func (h remoteHost) invoke(ctx context.Context, m string, v, out any) error {
+	if h.ctx != nil {
+		if e := h.ctx.Err(); e != nil {
+			return e
+		}
+	}
+	if h.epoch != "" {
+		b, e := json.Marshal(v)
+		if e != nil {
+			return e
+		}
+		return h.peer.Call(ctx, m, Callback{Epoch: h.epoch, Params: b}, out)
+	}
+	return h.peer.Call(ctx, m, v, out)
+}
+func (h remoteHost) ReadResource(ctx context.Context, v ResourceRead) (r ResourceChunk, e error) {
+	e = h.invoke(ctx, "host.resource.read", v, &r)
+	return
+}
+func (h remoteHost) Observe(ctx context.Context, v ObservationRequest) (r Observation, e error) {
+	e = h.invoke(ctx, "host.observe", v, &r)
+	return
+}
 
 func (h remoteHost) Call(ctx context.Context, v Call) (r Feedback, err error) {
-	err = h.peer.Call(ctx, "host.call", v, &r)
+	err = h.invoke(ctx, "host.call", v, &r)
 	return
 }
 func (h remoteHost) Event(ctx context.Context, v Event) error {
-	return h.peer.Call(ctx, "host.event", v, nil)
+	return h.invoke(ctx, "host.event", v, nil)
 }
 func (h remoteHost) Variable(ctx context.Context, v VariableRequest) (r Variable, err error) {
-	err = h.peer.Call(ctx, "host.variable", v, &r)
+	err = h.invoke(ctx, "host.variable", v, &r)
 	return
 }
 func (h remoteHost) Resource(ctx context.Context, v Resource) (r ResourceReceipt, err error) {
-	err = h.peer.Call(ctx, "host.resource", v, &r)
+	err = h.invoke(ctx, "host.resource", v, &r)
 	return
 }
 
@@ -49,6 +77,7 @@ func Serve(ctx context.Context, stream io.ReadWriteCloser, instance string, prov
 	}
 	var gate sync.Mutex
 	state := "new"
+	lastUnit := 0
 	var frozenRun []byte
 	var peer *Peer
 	handler := func(ctx context.Context, method string, raw json.RawMessage) (any, error) {
@@ -56,8 +85,23 @@ func Serve(ctx context.Context, stream io.ReadWriteCloser, instance string, prov
 			return nil, fmt.Errorf("special: lifecycle busy")
 		}
 		defer gate.Unlock()
-		host := remoteHost{peer}
+		phaseCtx, revoke := context.WithCancel(ctx)
+		defer revoke()
+		host := remoteHost{peer: peer, ctx: phaseCtx}
 		switch method {
+		case "health":
+			if h, ok := provider.(HealthProvider); ok {
+				return h.Health(ctx)
+			}
+			return Health{Ready: true, Revision: ContractRevision}, nil
+		case "snapshot":
+			if state != "finished" && state != "cleaned" {
+				return nil, fmt.Errorf("special: snapshot unavailable")
+			}
+			if p, ok := provider.(SnapshotProvider); ok {
+				return p.Snapshot(ctx)
+			}
+			return nil, fmt.Errorf("special: snapshot unsupported")
 		case "describe":
 			return provider.Describe(), nil
 		case "template":
@@ -80,7 +124,11 @@ func Serve(ctx context.Context, stream io.ReadWriteCloser, instance string, prov
 			if r.RunID == "" {
 				return nil, fmt.Errorf("special: run ID required")
 			}
-			encodedRun, _ := json.Marshal(r)
+			host.epoch = r.Epoch
+			identity := r
+			identity.Epoch = ""
+			identity.Unit = 0
+			encodedRun, _ := json.Marshal(identity)
 			if method != "prepare" && len(frozenRun) > 0 && !bytes.Equal(frozenRun, encodedRun) {
 				return nil, fmt.Errorf("special: run identity or compiled input changed")
 			}
@@ -92,12 +140,24 @@ func Serve(ctx context.Context, stream io.ReadWriteCloser, instance string, prov
 				frozenRun = encodedRun
 				state = "preparing"
 				err := provider.Prepare(ctx, r, host)
-				state = "prepared"
+				if err != nil {
+					state = "prepare_failed"
+				} else {
+					state = "prepared"
+				}
 				return nil, err
 			case "run":
-				if state != "prepared" {
+				if state != "prepared" && state != "finished" {
 					return nil, fmt.Errorf("special: run requires prepare")
 				}
+				unit := r.Unit
+				if unit == 0 && r.Compiled.Units == 0 {
+					unit = 1
+				}
+				if unit != lastUnit+1 || unit > max(r.Compiled.Units, 1) {
+					return nil, fmt.Errorf("special: unit identity already used or out of order")
+				}
+				lastUnit = unit
 				state = "running"
 				result, err := provider.Run(ctx, r, host)
 				state = "finished"
@@ -117,6 +177,9 @@ func Serve(ctx context.Context, stream io.ReadWriteCloser, instance string, prov
 			var r ReportRequest
 			if err := Decode(raw, &r); err != nil {
 				return nil, err
+			}
+			if p, ok := provider.(ResourceReporter); ok {
+				return p.PrepareResourceReport(ctx, r, host)
 			}
 			return provider.PrepareReport(ctx, r)
 		case "report.render":

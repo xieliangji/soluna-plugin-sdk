@@ -63,3 +63,12 @@ SDK 是公共接口、数据类型及协议的唯一来源。插件固定依赖 
 stdout 只用于协议，诊断写 stderr。保留 context、运行／动作身份、资源摘要与真实原因；RPC 成功、健康就绪和业务通过不可混淆。规则未实现时明确失败，不生成虚假结果。
 
 提交固定 SDK 版本的 go.mod/go.sum，正式发布不保留本机 replace。开发构建脚本只生成程序和摘要清单，正式分发需补齐自身依赖许可证、原生资源与归档验证。目录布局、内部抽象及 Agent 工作规则由插件维护者自己选择。
+
+
+## V1 迁移草案的联调
+
+专项项目统一名为 `soluna-special`，不同业务使用自己的插件 ID。固定依赖 SDK v0.1.3；Health revision 为 `v1-draft-20260925`。生命周期与资源接口见 [special-protocol.md](special-protocol.md)。若业务包含多轮执行，Compiled 声明 Units / UnitTimeoutMs，每个 Run 处理当前 Unit，避免把 200 轮塞进一个不可观测的调用。
+
+大结果和日志通过资源 ID 分块传输，不读取宿主路径，不在结果里内嵌整份大日志。报告在新进程中处理，通过 ResourceReporter 读取冻结资源，不能再操作设备。Private ResultGuide 说明判定来源、缺失证据及资源关联，为后续独立 AI 分析保留依据。
+
+集成夹具由 [pluginapi/plugintest](../pluginapi/plugintest/types.go) 定义。`soluna plugin test` 的 Host 只匹配显式的操作、观察与事件预期，资源传输可自动保存和回读；report 阶段禁止设备调用。它是离线集成测试，不等于真机验收。

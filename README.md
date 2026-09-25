@@ -21,4 +21,6 @@ GOWORK=off go vet ./...
 
 SDK 版本与进程协议、能力版本、插件版本分别管理。v0.1.0 抽取已有协议实现，保持线上字节和语义；正式消费者固定版本，联调才显式添加 SDK replace。SDK 为 Public，获取依赖无需 GitHub 登录或 GOPRIVATE。
 
-当前推荐版本为 **v0.1.2**：提供专项统一进程入口 `special.Main` 和明确的未实现错误，公共接口仍为 `special.Provider`。协议保持 special/1.0。
+当前推荐版本为 **v0.1.3**：提供专项统一进程入口 `special.Main` 和明确的未实现错误，公共接口仍为 `special.Provider`。协议保持 special/1.0。
+
+V1 草案此次补充 Health revision、阶段 epoch、顺序业务单元、Wait、通用观察、分块资源和独立资源报告。迁移细节见 [专项协议](docs/special-protocol.md)。
